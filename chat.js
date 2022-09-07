@@ -7,7 +7,8 @@ const { stdout, off } = require('process')
 
 const color = require('./lib/color')
 const help = require('./lib/help')
-const refile = require('./lib/refile');
+const refile = require('./lib/refile')
+const logprint = require('./lib/log')
 
 moment.tz.setDefault('Asia/Jakarta').locale('id')
 
@@ -47,18 +48,12 @@ module.exports = chat = async (client, message) => {
         switch (command) {
             case 'y': case 'yes':
                 fs.readFile(`temp/to-${senderid}.txt`, 'utf8', function(err, mto) {
-                    if (err) {
-                        console.error(err)
-                        return
-                    }
+                    if (err) throw err;
                     if (mto == "Restricted command detected, continue (Y/N)?") {
                         fs.readFile(`temp/from-${senderid}.txt`, 'utf8', function(err, mfrom) {
-                            if (err) {
-                                console.error(err)
-                                return
-                            }
+                            if (err) throw err;
                             exec(mfrom, (error, stdout, stderr) => {
-                                console.log(color(`${senderid}`, 'white'), color(`#`, 'red'), mfrom)
+                                logprint('#', senderid, mfrom)
                                 client.reply(from, `${stdout}`, id)
                             });
                             refile(senderid, mfrom, mto)
@@ -66,237 +61,240 @@ module.exports = chat = async (client, message) => {
                     }
                 });
                 break
+            case 'n': case 'no': break
             case 'help': case 'menu': case 'tips': case 'hackertarget':
-                console.log(color(`${senderid}`, 'white'), color(`?`, 'yellow'), `Show ${commands}`)
+                logprint('?', senderid, `Show ${commands}`)
                 client.reply(from, help(command), id)
-                refile(senderid, commands, help(command))
                 break
             case 'info':
                 exec(`neofetch --stdout --color_blocks off`, (error, stdout, stderr) => {
-                    console.log(color(`${senderid}`, 'white'), color(`?`, 'yellow'), `Get System Information`)
+                    logprint('?', senderid, `Get System Information`)
                     client.reply(from, `${stdout}`, id)
                 });
-                refile(senderid, commands, stdout)
                 break
             case 'hash':
-                if (args.length === 1) {
-                    return client.reply(from, `*Usage :* *${command}* target`, id)
-                }
+                if (args.length === 1) return client.reply(from, `*Usage :* *${command}* string`, id)
                 var teks = body.slice(5);
                 var result = await fetch(`https://tools.helixs.id//API/hashgen?text=${teks}`)
                 var json = await result.json()
                 if (json.status == "success") {
-                    console.log(color(`${senderid}`, 'white'), color(`?`, 'yellow'), `Get hashes for ${teks}`)
+                    logprint('?', senderid, `Get hashes for ${teks}`)
                     var hashes = `*Hashes for ${teks}*\n\n- MD2 : ${json.md2}\n- MD4 : ${json.md4}\n- MD5 : ${json.md5}\n- SHA1 : ${json.sha1}\n- SHA224 : ${json.sha224}\n- SHA256 : ${json.sha256}\n- SHA384 : ${json.sha384}\n- SHA512 : ${json.sha512}`
                     client.reply(from, hashes, id)
                 }
-                refile(senderid, commands, hashes)
                 break
             case 'dnslookup': case 'reversedns': case 'hostsearch': case 'zonetransfer': case 'findshareddns': case 'geoip': case 'reverseiplookup': case 'subnetcalc': case 'aslookup': case 'bannerlookup': case 'httpheaders': case 'pagelinks':
-                if (args.length === 1) {
-                    return client.reply(from, `*Usage :* *${command}* target`, id)
-                }
-                console.log(color(`${senderid}`, 'white'), color(`?`, 'yellow'), `Running ${command}, target : ${args[1]}`)
+                if (args.length === 1) return client.reply(from, `*Usage :* *${command}* target`, id)
+                logprint('?', senderid, `Running ${command}, target : ${args[1]}`)
                 var result = await fetch(`https://api.hackertarget.com/${command}/?q=${args[1]}`)
                 .then(async res => {
                     const data = await res.text()
                     return data
                 })
                 client.reply(from, result, id)
-                refile(senderid, commands, result)
                 break
             case 'subdo': case 'sub': case 'subdomain':
-                if (args.length === 1) {
-                    return client.reply(from, `*Usage :* *${command}* target`, id)
-                }
+                if (args.length === 1) return client.reply(from, `*Usage :* *${command}* target`, id)
                 var result = await fetch(`https://sonar.omnisint.io/subdomains/${args[1]}`);
                 var json = await result.json();
                 json.splice(0, json.length, ...(new Set(json)));
-                console.log(color(`${senderid}`, 'white'), color(`?`, 'yellow'), `Scan subdomains from ${args[1]}`)
+                logprint('?', senderid, `Scan subdomains from ${args[1]}`)
                 for (var i=0; i<json.length; i++) {
                     fs.appendFile(`temp/${senderid}-subdo-${args[1]}.txt`, `${json[i]}\n`, err => {
-                        if (err) {
-                            console.error(err)
-                            return
-                        }
+                        if (err) throw err;
                     })
                 }
                 fs.readFile(`temp/${senderid}-subdo-${args[1]}.txt`, 'utf8', function(err, data) {
-                    if (err) {
-                        console.error(err)
-                        return
-                    }
+                    if (err) throw err;
                     client.reply(from, data, id)
-                    refile(senderid, commands, data)
                 });
                 fs.unlink(`temp/${senderid}-subdo-${args[1]}.txt`, function (err) {
-                    if (err) {
-                        console.error(err)
-                        return
-                    }
+                    if (err) throw err;
                 });
                 break
+            case 'payload': case 'pload':
+                if (args.length === 1) return client.reply(from, help('payload'), id)
+                if (!args[2]) return client.reply(from, help(args[1]), id)
+                var payloadtype = args[2].toLowerCase()
+                switch (args[1]) {
+                    case 'xss':
+                        if (!fs.existsSync(`payload/xss/json/${payloadtype}.json`)) return client.reply(from, `Can't find ${payloadtype} payload`, id)
+                        fs.readFile(`payload/xss/json/${payloadtype}.json`, (err, data) => {
+                            if (err) throw err;
+                            let jsonData = JSON.parse(data);
+                            var xssmess = ''
+                            for (var i=0; i < jsonData.length; i++) {
+                                if (jsonData[i]['description']) xssmess += `\n*${jsonData[i]['description']}*\n`
+                                if (jsonData[i]['title']) xssmess += `\n*${jsonData[i]['title']}*\n`
+                                if (jsonData[i]['library']) xssmess += `\n*${jsonData[i]['library']}*\n`
+                                if (jsonData[i]['descriptionHTML']) xssmess += `\n${jsonData[i]['descriptionHTML']}\n`
+                                if (jsonData[i]['version']) xssmess += `\n*Version :* \n${jsonData[i]['version']}*\n`
+                                if (jsonData[i]['frameworkCode']) xssmess += `\n*Code :* \n${jsonData[i]['frameworkCode']}*\n`
+                                if (jsonData[i]['code']) xssmess += `\n*Payload :* \n${jsonData[i]['code']}*\n`
+                                if (jsonData[i]['payload']) xssmess += `\n*Payload :* \n${jsonData[i]['payload']}*\n`
+                                if (jsonData[i]['content-type']) xssmess += `\n*Content-type :* \n${jsonData[i]['content-type']}*\n`
+                                if (jsonData[i]['fingerprint']) xssmess += `\n*Fingerprint :* \n${jsonData[i]['fingerprint']}*\n`
+                                if (jsonData[i]['browsers'][0]) {
+                                    xssmess += `\n*Affected Browser :*\n`
+                                    for (var j=0; j < jsonData[i]['browsers'].length; j++) {
+                                        xssmess += `- ${jsonData[i]['browsers'][j]}\n`
+                                    }
+                                }
+                                if (jsonData[i]['url']) xssmess += `Url : ${jsonData[i]['url']}*\n`
+                            }
+                            logprint('?', senderid, `Show XSS ${payloadtype} Payload`)
+                            client.reply(from, xssmess, id)
+                        });
+                        break
+                }
+                break
             case 'note':
-                if (args.length === 1) {
-                    return client.reply(from, '*Usage :* *note* name action yournotes', id)
-                }
-                if (!fs.existsSync(`notes`)) {
-                    fs.mkdirSync(`notes`);
-                }
-                if (!fs.existsSync(`notes/${senderid}`)) {
-                    fs.mkdirSync(`notes/${senderid}`);
-                }
+                if (args.length === 1) return client.reply(from, '*Usage :* *note* name action yournotes', id)
+                if (!fs.existsSync(`notes/${senderid}`)) fs.mkdirSync(`notes/${senderid}`);
                 var note = `notes/${senderid}/${args[1]}.txt`;
                 if (args.length === 2) {
                     fs.readFile(note, 'utf8', function(err, data) {
-                        if (err) {
-                            console.error(err)
-                            return
-                        }
+                        if (err) throw err;
                         client.reply(from, data, id)
                     });
                 } else {
                     var teks = body.slice(5);
                     var catatan = teks.split(`${args[2]}`)[1];
-                    if (args[2] == 'add') {
-                        fs.appendFile(note, `${catatan}\n`, err => {
-                            if (err) {
-                                console.error(err)
-                                return
-                            }
-                            client.reply(from, `Note *${args[1]}* added`, id)
-                        })
-                    } else if (args[2] == 'del') {
-                        fs.unlink(note, function (err) {
-                            if (err) {
-                                console.error(err)
-                                return
-                            }
-                            client.reply(from, `Note *${args[1]}* removed`, id)
-                        });
+                    switch (args[2]) {
+                        case 'add':
+                            fs.appendFile(note, `${catatan}\n`, err => {
+                                if (err) throw err;
+                                client.reply(from, `Note *${args[1]}* added`, id)
+                            })
+                            break
+                        case 'del':
+                            fs.unlink(note, function (err) {
+                                if (err) throw err;
+                                client.reply(from, `Note *${args[1]}* removed`, id)
+                            });
+                            break
                     }
                 }
                 break
             case 'notes':
-                if (!fs.existsSync(`notes`)) {
-                    fs.mkdirSync(`notes`);
-                }
-                if (!fs.existsSync(`notes/${senderid}`)) {
-                    fs.mkdirSync(`notes/${senderid}`);
-                }
+                if (!fs.existsSync(`notes/${senderid}`)) fs.mkdirSync(`notes/${senderid}`)
                 var folder = fs.readdirSync(`notes/${senderid}/`);
                 fs.appendFile(`temp/${senderid}-notes.txt`, `${folder}`, err => {
-                    if (err) {
-                        console.error(err)
-                        return
-                    }
+                    if (err) throw err;
                 });
                 fs.readFile(`temp/${senderid}-notes.txt`, 'utf8', function(err, data) {
-                    if (err) {
-                        console.error(err)
-                        return
-                    }
-                    var data = data.replace(/.txt/g,'');
-                    var data = data.replace(/,/g,'\n')
+                    if (err) throw err;
+                    var data = data.replace(/.txt/g,'').replace(/,/g,'\n')
                     client.reply(from, `*Available Notes :*\n\n${data}`, id)
                 });
                 fs.unlink(`temp/${senderid}-notes.txt`, function (err) {
-                    if (err) {
-                        console.error(err)
-                        return
-                    }
+                    if (err) throw err;
                 });
                 break
             default:
                 if (command.includes('cve')) {
                     if (command.includes('-')) {
+                        var foundcve = 0
                         var cveid = command.toUpperCase()
-                        if (fs.existsSync(`CVE/${cveid}.json`)) {
-                            var file = `CVE/${cveid}.json`;
-                            fs.readFile(file, (err, data) => {
+                        var year = cveid.split('-')[1]
+                        var folder = fs.readdirSync(`cvelist/${year}/`)
+                        fs.appendFile(`temp/${senderid}-cve.txt`, `${folder}`, err => {
+                            if (err) throw err;
+                        });
+                        fs.readFile(`temp/${senderid}-cve.txt`, 'utf8', function(err, data) {
+                            if (err) throw err;
+                            var data = data.replace(/,/g,'\n')
+                            fs.appendFile(`temp/${senderid}-cvelist.txt`, `${data}`, err => {
                                 if (err) throw err;
-                                let jsonData = JSON.parse(data);
-                                if (jsonData['CVE_data_meta']['STATE'] == 'RESERVED') {
-                                    var cvemess = `*${jsonData['CVE_data_meta']['ID']} - ${jsonData['CVE_data_meta']['STATE']}*`
-                                } else if (jsonData['CVE_data_meta']['STATE'] == 'PUBLIC') {
-                                    var cvemess = `*${jsonData['CVE_data_meta']['ID']} - ${jsonData['problemtype']['problemtype_data'][0]['description'][0]['value']}*`
-                                    cvemess += `\n${jsonData['description']['description_data'][0]['value']}`
-                                    cvemess += `\n\n*Affected Machines :*`
-                                    for (var i=0; i < jsonData['affects']['vendor']['vendor_data'][0]['product']['product_data'].length; i++) {
-                                        if (jsonData['affects']['vendor']['vendor_data'][0]['product']['product_data'][i]['version']['version_data'][0]['version_value'] == '' || jsonData['affects']['vendor']['vendor_data'][0]['product']['product_data'][i]['version']['version_data'][0]['version_value'] == 'n/a') {
-                                            cvemess += `\n- ${jsonData['affects']['vendor']['vendor_data'][0]['product']['product_data'][i]['product_name']}`
-                                        } else {
-                                            for (var j=0; j < jsonData['affects']['vendor']['vendor_data'][0]['product']['product_data'][i]['version']['version_data'].length; j++) {
-                                                cvemess += `\n- ${jsonData['affects']['vendor']['vendor_data'][0]['product']['product_data'][i]['product_name']} ${jsonData['affects']['vendor']['vendor_data'][0]['product']['product_data'][i]['version']['version_data'][j]['version_value']}`
+                            });
+                        });
+                        fs.readFileSync(`temp/${senderid}-cvelist.txt`, 'utf-8').split(/\r?\n/).forEach(function(line){
+                            if (fs.existsSync(`cvelist/${year}/${line}/${cveid}.json`)) {
+                                foundcve += 1
+                                fs.readFile(`cvelist/${year}/${line}/${cveid}.json`, (err, data) => {
+                                    if (err) throw err;
+                                    let jsonData = JSON.parse(data);
+                                    if (jsonData['CVE_data_meta']['STATE'] == 'RESERVED') {
+                                        var cvemess = `*${jsonData['CVE_data_meta']['ID']} - ${jsonData['CVE_data_meta']['STATE']}*`
+                                    } else if (jsonData['CVE_data_meta']['STATE'] == 'PUBLIC') {
+                                        var cvemess = `*${jsonData['CVE_data_meta']['ID']} - ${jsonData['problemtype']['problemtype_data'][0]['description'][0]['value']}*`
+                                        cvemess += `\n${jsonData['description']['description_data'][0]['value']}`
+                                        cvemess += `\n\n*Affected Machines :*`
+                                        for (var i=0; i < jsonData['affects']['vendor']['vendor_data'][0]['product']['product_data'].length; i++) {
+                                            if (jsonData['affects']['vendor']['vendor_data'][0]['product']['product_data'][i]['version']['version_data'][0]['version_value'] == '' || jsonData['affects']['vendor']['vendor_data'][0]['product']['product_data'][i]['version']['version_data'][0]['version_value'] == 'n/a') {
+                                                cvemess += `\n- ${jsonData['affects']['vendor']['vendor_data'][0]['product']['product_data'][i]['product_name']}`
+                                            } else {
+                                                for (var j=0; j < jsonData['affects']['vendor']['vendor_data'][0]['product']['product_data'][i]['version']['version_data'].length; j++) {
+                                                    cvemess += `\n- ${jsonData['affects']['vendor']['vendor_data'][0]['product']['product_data'][i]['product_name']} ${jsonData['affects']['vendor']['vendor_data'][0]['product']['product_data'][i]['version']['version_data'][j]['version_value']}`
+                                                }
                                             }
                                         }
+                                        cvemess += `\n\n*References :*`
+                                        for (var k=0; k < jsonData['references']['reference_data'].length; k++) {
+                                            cvemess += `\n- ${jsonData['references']['reference_data'][k]['url']}`
+                                        }
                                     }
-                                    cvemess += `\n\n*References :*`
-                                    for (var k=0; k < jsonData['references']['reference_data'].length; k++) {
-                                        cvemess += `\n- ${jsonData['references']['reference_data'][k]['url']}`
-                                    }
-                                }
-                                console.log(color(`${senderid}`, 'white'), color(`?`, 'yellow'), `Show ${cveid}`)
-                                client.reply(from, cvemess, id)
-                                refile(senderid, commands, cvemess)
-                            });
-                        } else {
+                                    logprint('?', senderid, `Show ${cveid}`)
+                                    client.reply(from, cvemess, id)
+                                });
+                            }
+                        })
+                        if (foundcve == 0) {
                             client.reply(from, `Can't find ${cveid}`, id)
-                            refile(senderid, commands, `Can't find ${cveid}`)
                         }
+                        fs.unlink(`temp/${senderid}-cve.txt`, function (err) {
+                            if (err) throw err;
+                        });
+                        fs.unlink(`temp/${senderid}-cvelist.txt`, function (err) {
+                            if (err) throw err;
+                        });
                     } else {
-                        client.reply(from, `Searching for CVE's? Send me CVE id`, id)
-                        refile(senderid, commands, `Searching for CVE's? Send me CVE id`)
+                        client.reply(from, `Searching for CVEs? Send me CVE id`, id)
                     }
                     break
                 }
+
                 var email = "bransen.vikranth@logdots.com"
                 var code = "49898fab6e014903"
-                if (command.length == 32) {
-                    var hashtype = "md5"
-                } else if (command.length == 40) {
-                    var hashtype = "sha1"
-                } else if (command.length == 64) {
-                    var hashtype = "sha256"
-                } else if (command.length == 96) {
-                    var hashtype = "sha384"
-                } else if (command.length == 128) {
-                    var hashtype = "sha512"
-                } else {
-                    if (isRestricted) {
-                        fme = "Restricted command detected, continue (Y/N)?"
-                        client.reply(from, `${fme}`, id)
-                        refile(senderid, commands, fme)
+
+                switch (command.length) {
+                    case 32: var hashtype = "md5"; break
+                    case 40: var hashtype = "sha1"; break
+                    case 64: var hashtype = "sha256"; break
+                    case 96: var hashtype = "sha384"; break
+                    case 128: var hashtype = "sha512"; break
+                    default:
+                        if (isRestricted) {
+                            fme = "Restricted command detected, continue (Y/N)?"
+                            refile(senderid, commands, fme)
+                            return client.reply(from, `${fme}`, id)
+                        } else {
+                            exec(commands, (error, stdout, stderr) => {
+                                logprint('$', senderid, commands)
+                                refile(senderid, commands, stdout)
+                                return client.reply(from, `${stdout}`, id)
+                            });
+                        }
                         break
-                    } else {
-                        exec(commands, (error, stdout, stderr) => {
-                            console.log(color(`${senderid}`, 'white'), color(`$`, 'green'), commands)
-                            client.reply(from, `${stdout}`, id)
-                        });
-                        refile(senderid, commands, stdout)
-                        break
-                    }
                 }
-                var result = await fetch(`https://md5decrypt.net/en/Api/api.php?hash=${command}&hash_type=${hashtype}&email=${email}&code=${code}`)
-                .then(async res => {
-                    const data = await res.text()
-                    return data
-                })
-                if (!result) {
-                    console.log(color(`${senderid}`, 'white'), color(`?`, 'yellow'), `Dehash ${command} (failed)`)
-                    client.reply(from, `Can't decrypt ${command}`, id);
-                    refile(senderid, commands, `Can't decrypt ${command}`)
-                    break
-                } else {
-                    var result = result.split('\n')[0];
-                    console.log(color(`${senderid}`, 'white'), color(`?`, 'yellow'), `Dehash ${command} : ${result}`)
-                    client.reply(from, result, id);
-                    refile(senderid, commands, result)
-                    break
+                if (hashtype) {
+                    var result = await fetch(`https://md5decrypt.net/en/Api/api.php?hash=${command}&hash_type=${hashtype}&email=${email}&code=${code}`)
+                    .then(async res => {
+                        const data = await res.text()
+                        return data
+                    })
+                    if (!result) {
+                        logprint('?', senderid, `Dehash ${command} (failed)`)
+                        return client.reply(from, `Can't decrypt ${command}`, id);
+                    } else {
+                        if (result == 'ERROR CODE : 005') return
+                        var result = result.split('\n')[0];
+                        logprint('?', senderid, `Dehash ${command} : ${result}`)
+                        return client.reply(from, result, id)
+                    }
                 }
         }
     } catch (err) {
         console.log(color('[ERROR]', 'red'), err)
-        //client.kill().then(a => console.log(a))
     }
 }

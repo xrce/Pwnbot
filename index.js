@@ -1,7 +1,12 @@
 const { create, Client } = require('@open-wa/wa-automate')
+const fs = require('fs')
 
 const chat = require('./chat')
 const config = require('./config')
+
+if (!fs.existsSync(`notes`)) fs.mkdirSync(`notes`)
+if (!fs.existsSync(`temp`)) fs.mkdirSync(`temp`)
+if (!fs.existsSync(`payload`)) fs.mkdirSync(`payload`)
 
 const start = async (client = new Client()) => {
     console.clear()
